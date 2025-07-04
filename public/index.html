@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nutritional Value Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <nav class="bg-white shadow-md">
+        <div class="container mx-auto px-4">
+            <div class="flex justify-between items-center py-4">
+                <h1 class="text-2xl font-bold text-gray-900">Nutrition Tracker</h1>
+                <div>
+                    <a href="dashboard.html" class="text-gray-600 hover:text-blue-600 mr-4">Dashboard</a>
+                    <a href="profile.html" class="text-gray-600 hover:text-blue-600 mr-4">Profile</a>
+                    <button id="sign-out-btn" class="bg-red-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-600 transition-colors duration-300">Sign Out</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto p-4 md:p-8 max-w-2xl">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-900">Track Your Nutrition</h1>
+            <p class="text-gray-600 mt-2">Get detailed nutritional information for your meals.</p>
+        </header>
+
+        <main>
+            <div class="bg-white p-6 rounded-lg shadow-lg">
+                <div class="mb-4">
+                    <label for="food-input" class="block text-sm font-medium text-gray-700 mb-2">Enter food items</label>
+                    <div class="relative">
+                        <input type="text" id="food-input" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., 'banana 300 gram, almonds 40 gram'">
+                    </div>
+                </div>
+
+                <div class="flex flex-col sm:flex-row items-center justify-between space-y-4 sm:space-y-0 sm:space-x-4">
+                    <button id="text-search-btn" class="w-full sm:w-auto bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors duration-300 flex items-center justify-center shadow-md">
+                        <i class="fas fa-search mr-2"></i> Get Nutrition
+                    </button>
+                    <div class="flex space-x-4">
+                        <button id="voice-search-btn" class="w-16 h-16 bg-green-500 text-white font-semibold rounded-full hover:bg-green-600 transition-colors duration-300 flex items-center justify-center shadow-md">
+                            <i class="fas fa-microphone text-2xl"></i>
+                        </button>
+                        <button id="camera-search-btn" class="w-16 h-16 bg-purple-500 text-white font-semibold rounded-full hover:bg-purple-600 transition-colors duration-300 flex items-center justify-center shadow-md">
+                            <i class="fas fa-camera text-2xl"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Hidden file input for camera -->
+                <input type="file" id="camera-input" accept="image/*" capture="camera" class="hidden">
+
+                <!-- Camera Preview Modal -->
+                <div id="camera-preview-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div class="bg-white p-4 rounded-lg shadow-xl max-w-md w-full">
+                        <h2 class="text-xl font-bold mb-4">Camera Preview</h2>
+                        <video id="camera-preview" class="w-full rounded-lg" autoplay></video>
+                        <div class="flex justify-end space-x-2 mt-4">
+                            <button id="capture-btn" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Capture</button>
+                            <button id="cancel-capture-btn" class="bg-gray-300 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-400">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="results-container" class="mt-8">
+                <!-- Loading indicator -->
+                <div id="loader" class="hidden justify-center items-center">
+                    <div class="loader ease-linear rounded-full border-8 border-t-8 border-gray-200 h-24 w-24"></div>
+                </div>
+                <!-- Error message -->
+                <div id="error-message" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative" role="alert">
+                    <strong class="font-bold">Error:</strong>
+                    <span class="block sm:inline" id="error-text"></span>
+                </div>
+                <!-- Nutritional info will be displayed here -->
+                <div id="nutritional-info" class="bg-white p-6 rounded-lg shadow-lg hidden"></div>
+            </div>
+        </main>
+    </div>
+    
+    <script type="module" src="firebase.js"></script>
+    <script type="module" src="script.js"></script>
+</body>
+</html>
