@@ -18,6 +18,8 @@
                 <div>
                     <a href="profile.html" class="text-gray-600 hover:text-blue-600 mr-4">Profile</a>
                     <a href="index.html" class="text-gray-600 hover:text-blue-600 mr-4">Tracker</a>
+                    <a href="progress.html" class="text-gray-600 hover:text-blue-600 mr-4">Progress</a>
+                    <a href="subscription.html" class="text-gray-600 hover:text-blue-600 mr-4">Subscription</a>
                     <button id="sign-out-btn" class="bg-red-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-600 transition-colors duration-300">Sign Out</button>
                 </div>
             </div>
@@ -50,6 +52,12 @@
                 <!-- Daily Summary -->
                 <div class="bg-white p-6 rounded-lg shadow-lg">
                     <h2 class="text-2xl font-bold mb-4">Today's Meals</h2>
+                    <div class="flex items-center mb-4 space-x-2">
+                        <button id="prev-day-btn" class="bg-gray-200 px-3 py-1 rounded hover:bg-gray-300">&#8592;</button>
+                        <input type="date" id="meal-log-date" class="border rounded px-2 py-1" />
+                        <button id="next-day-btn" class="bg-gray-200 px-3 py-1 rounded hover:bg-gray-300">&#8594;</button>
+                        <button id="this-week-btn" class="ml-4 bg-blue-100 px-3 py-1 rounded hover:bg-blue-200">This Week</button>
+                    </div>
                     <div id="meal-log" class="space-y-4">
                         <!-- Meal entries will be dynamically added here -->
                     </div>
