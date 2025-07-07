@@ -174,23 +174,25 @@ function initLoginPage() {
                 return;
             }
 
-            // Send signup request to backend
+            // Use Firebase Auth for signup
             try {
-                const res = await fetch('http://localhost:4000/api/request-signup', {
+                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                const user = userCredential.user;
+                // After Firebase signup, create user in MongoDB
+                await fetch('/api/user/profile', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, password })
+                    body: JSON.stringify({
+                        uid: user.uid,
+                        email: user.email,
+                        name: user.displayName || '',
+                    })
                 });
-                const data = await res.json();
-                if (data.approvalToken) {
-                    sendSignupNotification(email, data.approvalToken);
-                    alert('Signup request sent. You will be notified after approval.');
-                    signupForm.reset();
-                } else {
-                    alert('Error sending signup request.');
-                }
-            } catch (err) {
-                alert('Error sending signup request.');
+                // Redirect or show success
+                window.location.href = 'index.html';
+            } catch (error) {
+                if (authErrorText) authErrorText.textContent = error.message;
+                if (authError) authError.classList.remove('hidden');
             }
         });
     }
@@ -577,6 +579,7 @@ function initProfilePage(userId) {
     async function saveProfile() {
         if (!userId) return;
         try {
+            const user = auth.currentUser;
             const newWeight = parseFloat(weightInput?.value) || null;
             // Add to history if weight changed
             let history = profileHistory || [];
@@ -584,6 +587,8 @@ function initProfilePage(userId) {
                 history.push({ date: new Date().toISOString().split('T')[0], weight: newWeight });
             }
             const profileData = {
+                uid: user?.uid,
+                email: user?.email,
                 age: parseInt(ageInput?.value) || null,
                 height: parseFloat(heightInput?.value) || null,
                 weight: newWeight,
@@ -798,7 +803,7 @@ function initDashboardPage(userId) {
             showErrorModal("Cannot log meal, user not authenticated.");
             return;
         }
-        
+        const user = auth.currentUser;
         const mealType = document.getElementById('meal-type')?.value || 'Snack';
         const mealInput = document.getElementById('meal-input')?.value?.trim();
         
@@ -813,6 +818,8 @@ function initDashboardPage(userId) {
             
             if (nutritionData && nutritionData.items) {
                 const mealData = {
+                    uid: user?.uid,
+                    email: user?.email,
                     date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
                     type: mealType,
                     items: nutritionData.items,

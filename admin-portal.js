@@ -281,3 +281,19 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
+
+// Simple signup endpoint (no approval, just creates user)
+app.post('/api/signup', async (req, res) => {
+  try {
+    const { uid, email, name, password } = req.body;
+    if (!uid || !email || !password) return res.status(400).json({ error: 'uid, email, and password are required' });
+    let user = await User.findOne({ uid });
+    if (user) return res.status(400).json({ error: 'User already exists' });
+    user = new User({ uid, email, name: name || 'User' });
+    await user.save();
+    res.json({ success: true, user });
+  } catch (error) {
+    console.error('Error signing up user:', error);
+    res.status(500).json({ error: 'Failed to sign up user' });
+  }
+});
