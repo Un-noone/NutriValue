@@ -275,3 +275,9 @@ app.post('/admin/user/:uid/subscription', async (req, res) => {
   await user.save();
   res.json({ success: true });
 });
+
+app.use(express.static(path.join(__dirname, 'public')));
+
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
