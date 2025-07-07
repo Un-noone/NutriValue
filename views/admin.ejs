@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Admin Portal</title>
+  <script>
+    async function toggleUser(uid, disable) {
+      await fetch(`/admin/user/${uid}/toggle`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({disable})});
+      location.reload();
+    }
+    async function deleteUser(uid) {
+      if (confirm('Delete user?')) {
+        await fetch(`/admin/user/${uid}/delete`, {method:'POST'});
+        location.reload();
+      }
+    }
+    async function setSubscription(uid, subscribe) {
+      await fetch(`/admin/user/${uid}/subscription`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({subscribe})});
+      location.reload();
+    }
+  </script>
+</head>
+<body>
+  <h2>Admin Portal</h2>
+  <a href="/admin/logout">Logout</a>
+  <table border="1" cellpadding="5">
+    <tr>
+      <th>Email</th>
+      <th>Status</th>
+      <th>Subscription</th>
+      <th>Actions</th>
+    </tr>
+    <% users.forEach(user => { %>
+      <tr>
+        <td><%= user.email %></td>
+        <td><%= user.disabled ? 'Deactivated' : 'Active' %></td>
+        <td><%= user.subscription ? 'Yes' : 'No' %></td>
+        <td>
+          <button onclick="toggleUser('<%= user.uid %>', <%= !user.disabled %>)"><%= user.disabled ? 'Activate' : 'Deactivate' %></button>
+          <button onclick="deleteUser('<%= user.uid %>')">Delete</button>
+          <button onclick="setSubscription('<%= user.uid %>', <%= !user.subscription %>)"><%= user.subscription ? 'Revoke Subscription' : 'Grant Subscription' %></button>
+        </td>
+      </tr>
+    <% }) %>
+  </table>
+</body>
+</html>

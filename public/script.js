@@ -134,12 +134,16 @@ function initLoginPage() {
                 return;
             }
 
+            // Try to sign in with Firebase Auth
             try {
                 await signInWithEmailAndPassword(auth, email, password);
-                console.log("Login successful");
+                // If successful, check if user is approved (optional: you can add a custom claim or check a flag in your DB)
             } catch (error) {
-                console.error("Login error:", error);
-                if (authErrorText) authErrorText.textContent = error.message;
+                if (error.code === 'auth/user-not-found') {
+                    if (authErrorText) authErrorText.textContent = "Your account is pending approval or does not exist.";
+                } else {
+                    if (authErrorText) authErrorText.textContent = error.message;
+                }
                 if (authError) authError.classList.remove('hidden');
             }
         });
@@ -170,13 +174,23 @@ function initLoginPage() {
                 return;
             }
 
+            // Send signup request to backend
             try {
-                await createUserWithEmailAndPassword(auth, email, password);
-                console.log("Account created successfully");
-            } catch (error) {
-                console.error("Signup error:", error);
-                if (authErrorText) authErrorText.textContent = error.message;
-                if (authError) authError.classList.remove('hidden');
+                const res = await fetch('http://localhost:4000/api/request-signup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                const data = await res.json();
+                if (data.approvalToken) {
+                    sendSignupNotification(email, data.approvalToken);
+                    alert('Signup request sent. You will be notified after approval.');
+                    signupForm.reset();
+                } else {
+                    alert('Error sending signup request.');
+                }
+            } catch (err) {
+                alert('Error sending signup request.');
             }
         });
     }
@@ -1042,4 +1056,27 @@ async function callGeminiAPI(prompt, base64ImageData = null) {
         console.error('API call error:', error);
         throw error;
     }
+}
+
+// EmailJS config
+const EMAILJS_SERVICE_ID = 'service_472za2c';
+const EMAILJS_TEMPLATE_ID = 'template_nsl3mfc';
+const EMAILJS_PUBLIC_KEY = 'yjXQ2dziULsw8Z0eq';
+
+// Initialize EmailJS
+if (typeof emailjs !== 'undefined') {
+    emailjs.init(EMAILJS_PUBLIC_KEY);
+}
+
+function sendSignupNotification(email, approvalToken) {
+    emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+        signup_email: email,
+        signup_time: new Date().toLocaleString(),
+        approve_link: `http://localhost:4000/api/approve-signup?token=${approvalToken}`,
+        decline_link: `http://localhost:4000/api/decline-signup?token=${approvalToken}`
+    }).then(function(response) {
+        console.log('Signup notification sent!', response.status, response.text);
+    }, function(error) {
+        console.error('Failed to send signup notification:', error);
+    });
 }
