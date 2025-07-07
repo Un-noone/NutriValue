@@ -1,13 +1,8 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const admin = require('firebase-admin');
-const serviceAccount = require('/etc/secrets/serviceAccountKey.json');
-
-// Initialize Firebase Admin
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
-});
+// Removed: const admin = require('firebase-admin');
+// Removed: const serviceAccount = require('/etc/secrets/serviceAccountKey.json');hi
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -75,38 +70,18 @@ const mealSchema = new mongoose.Schema({
 const User = mongoose.model('User', userSchema);
 const Meal = mongoose.model('Meal', mealSchema);
 
-// Middleware to verify Firebase ID token
-async function authenticateToken(req, res, next) {
-  try {
-    const idToken = req.headers.authorization?.split('Bearer ')[1];
-    if (!idToken) {
-      return res.status(401).json({ error: 'No token provided' });
-    }
-    
-    const decodedToken = await admin.auth().verifyIdToken(idToken);
-    req.user = decodedToken;
-    next();
-  } catch (err) {
-    console.error('Token verification error:', err);
-    res.status(401).json({ error: 'Invalid token' });
-  }
-}
-
 // Health check route
-app.get('/login', (req, res) => {
+app.get('/health', (req, res) => {
   res.json({ status: 'OK', message: 'Server is running' });
 });
 
-// Create or update user profile
-app.post('/api/user/profile', authenticateToken, async (req, res) => {
+// Create or update user profile (no auth)
+app.post('/api/user/profile', async (req, res) => {
   try {
-    const { name, email, age, height, weight, goal, targetWeight, history } = req.body;
-    const uid = req.user.uid;
-
+    const { uid, name, email, age, height, weight, goal, targetWeight, history } = req.body;
+    if (!uid || !email) return res.status(400).json({ error: 'uid and email are required' });
     let user = await User.findOne({ uid });
-    
     if (user) {
-      // Update existing user
       user.name = name || user.name;
       user.email = email || user.email;
       user.age = age !== undefined ? age : user.age;
@@ -118,11 +93,10 @@ app.post('/api/user/profile', authenticateToken, async (req, res) => {
       user.updatedAt = new Date();
       await user.save();
     } else {
-      // Create new user
       user = new User({
         uid,
-        email: email || req.user.email,
-        name: name || req.user.name || 'User',
+        email,
+        name: name || 'User',
         age,
         height,
         weight,
@@ -132,7 +106,6 @@ app.post('/api/user/profile', authenticateToken, async (req, res) => {
       });
       await user.save();
     }
-
     res.json({ success: true, user });
   } catch (error) {
     console.error('Error saving user profile:', error);
@@ -140,10 +113,12 @@ app.post('/api/user/profile', authenticateToken, async (req, res) => {
   }
 });
 
-// Get user profile
-app.get('/api/user/profile', authenticateToken, async (req, res) => {
+// Get user profile (no auth)
+app.get('/api/user/profile', async (req, res) => {
   try {
-    const user = await User.findOne({ uid: req.user.uid });
+    const { uid } = req.query;
+    if (!uid) return res.status(400).json({ error: 'uid is required' });
+    const user = await User.findOne({ uid });
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -154,8 +129,8 @@ app.get('/api/user/profile', authenticateToken, async (req, res) => {
   }
 });
 
-// Get all users (admin route)
-app.get('/api/users', authenticateToken, async (req, res) => {
+// Get all users (no auth)
+app.get('/api/users', async (req, res) => {
   try {
     const users = await User.find({}).select('-__v');
     res.json({ success: true, users });
@@ -165,12 +140,11 @@ app.get('/api/users', authenticateToken, async (req, res) => {
   }
 });
 
-// Log a meal
-app.post('/api/meals', authenticateToken, async (req, res) => {
+// Log a meal (no auth)
+app.post('/api/meals', async (req, res) => {
   try {
-    const { date, type, items, total } = req.body;
-    const uid = req.user.uid;
-
+    const { uid, date, type, items, total } = req.body;
+    if (!uid || !date) return res.status(400).json({ error: 'uid and date are required' });
     const meal = new Meal({
       uid,
       date,
@@ -178,7 +152,6 @@ app.post('/api/meals', authenticateToken, async (req, res) => {
       items,
       total
     });
-
     await meal.save();
     res.json({ success: true, meal });
   } catch (error) {
@@ -187,12 +160,12 @@ app.post('/api/meals', authenticateToken, async (req, res) => {
   }
 });
 
-// Get meals by date
-app.get('/api/meals/:date', authenticateToken, async (req, res) => {
+// Get meals by date (no auth)
+app.get('/api/meals/:date', async (req, res) => {
   try {
+    const { uid } = req.query;
     const { date } = req.params;
-    const uid = req.user.uid;
-
+    if (!uid || !date) return res.status(400).json({ error: 'uid and date are required' });
     const meals = await Meal.find({ uid, date }).sort({ createdAt: 1 });
     res.json({ success: true, meals });
   } catch (error) {
@@ -201,17 +174,16 @@ app.get('/api/meals/:date', authenticateToken, async (req, res) => {
   }
 });
 
-// Get meals by date range
-app.get('/api/meals/range/:startDate/:endDate', authenticateToken, async (req, res) => {
+// Get meals by date range (no auth)
+app.get('/api/meals/range/:startDate/:endDate', async (req, res) => {
   try {
+    const { uid } = req.query;
     const { startDate, endDate } = req.params;
-    const uid = req.user.uid;
-
+    if (!uid || !startDate || !endDate) return res.status(400).json({ error: 'uid, startDate, and endDate are required' });
     const meals = await Meal.find({ 
       uid, 
       date: { $gte: startDate, $lte: endDate } 
     }).sort({ date: 1, createdAt: 1 });
-    
     res.json({ success: true, meals });
   } catch (error) {
     console.error('Error fetching meals by range:', error);
@@ -219,17 +191,15 @@ app.get('/api/meals/range/:startDate/:endDate', authenticateToken, async (req, r
   }
 });
 
-// Get all meals for a user
-app.get('/api/meals', authenticateToken, async (req, res) => {
+// Get all meals for a user (no auth)
+app.get('/api/meals', async (req, res) => {
   try {
-    const uid = req.user.uid;
-    const { limit = 50, offset = 0 } = req.query;
-
+    const { uid, limit = 50, offset = 0 } = req.query;
+    if (!uid) return res.status(400).json({ error: 'uid is required' });
     const meals = await Meal.find({ uid })
       .sort({ date: -1, createdAt: -1 })
       .limit(parseInt(limit))
       .skip(parseInt(offset));
-    
     res.json({ success: true, meals });
   } catch (error) {
     console.error('Error fetching all meals:', error);
@@ -237,17 +207,16 @@ app.get('/api/meals', authenticateToken, async (req, res) => {
   }
 });
 
-// Delete a meal
-app.delete('/api/meals/:mealId', authenticateToken, async (req, res) => {
+// Delete a meal (no auth)
+app.delete('/api/meals/:mealId', async (req, res) => {
   try {
+    const { uid } = req.query;
     const { mealId } = req.params;
-    const uid = req.user.uid;
-
+    if (!uid || !mealId) return res.status(400).json({ error: 'uid and mealId are required' });
     const meal = await Meal.findOneAndDelete({ _id: mealId, uid });
     if (!meal) {
       return res.status(404).json({ error: 'Meal not found' });
     }
-
     res.json({ success: true, message: 'Meal deleted successfully' });
   } catch (error) {
     console.error('Error deleting meal:', error);
@@ -264,5 +233,5 @@ app.use((err, req, res, next) => {
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📊 Health check: http://localhost:${PORT}/login`);
+  console.log(`📊 Health check: http://localhost:${PORT}/health`);
 });
