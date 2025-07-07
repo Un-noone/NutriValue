@@ -10,6 +10,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 // Import Realtime Database functions
 import { getDatabase, ref, set, get, push, onValue } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
+import { apiService } from './api.js';
 
 // Your web app's Firebase configuration from your project
 const firebaseConfig = {
@@ -30,76 +31,37 @@ const db = getDatabase(app);
 // --- Realtime Database Functions ---
 
 /**
- * Saves user profile data to Realtime Database.
- * @param {string} uid - The user's unique ID.
+ * Saves user profile data to MongoDB via backend API.
  * @param {object} profileData - The user's profile data.
  */
-async function saveUserProfile(uid, profileData) {
-    if (!uid) return;
-    try {
-        await set(ref(db, 'users/' + uid + '/profile'), profileData);
-        console.log("Profile saved successfully!");
-    } catch (error) {
-        console.error("Error saving profile: ", error);
-    }
+async function saveUserProfile(profileData) {
+    return apiService.saveUserProfile(profileData);
 }
 
 /**
- * Retrieves user profile data from Realtime Database.
- * @param {string} uid - The user's unique ID.
+ * Retrieves user profile data from MongoDB via backend API.
  * @returns {object|null} The user's profile data or null if not found.
  */
-async function getUserProfile(uid) {
-    if (!uid) return null;
-    try {
-        const snapshot = await get(ref(db, 'users/' + uid + '/profile'));
-        if (snapshot.exists()) {
-            return snapshot.val();
-        } else {
-            console.log("No profile data available");
-            return null;
-        }
-    } catch (error) {
-        console.error("Error getting profile: ", error);
-        return null;
-    }
+async function getUserProfile() {
+    return apiService.getUserProfile();
 }
 
 /**
- * Logs a meal to the user's meal log in Realtime Database.
- * @param {string} uid - The user's unique ID.
+ * Logs a meal to MongoDB via backend API.
  * @param {object} mealData - The meal data to log.
  */
-async function logMeal(uid, mealData) {
-    if (!uid) return;
-    try {
-        const mealDate = mealData.date;
-        const mealRef = ref(db, `users/${uid}/meals/${mealDate}`);
-        await push(mealRef, mealData);
-        console.log("Meal logged successfully!");
-    } catch (error) {
-        console.error("Error logging meal: ", error);
-    }
+async function logMeal(mealData) {
+    return apiService.logMeal(mealData);
 }
 
 /**
- * Gets a real-time stream of a user's meals for a specific date.
- * @param {string} uid - The user's unique ID.
+ * Gets meals for a specific date from MongoDB via backend API.
  * @param {string} date - The date to fetch meals for (YYYY-MM-DD).
- * @param {function} callback - The function to call with the meal data.
- * @returns {function} An unsubscribe function to stop listening for changes.
+ * @returns {Promise<Array>} Array of meals for the date.
  */
-function getMealsByDate(uid, date, callback) {
-    if (!uid) return () => {};
-    const mealsRef = ref(db, `users/${uid}/meals/${date}`);
-    
-    const unsubscribe = onValue(mealsRef, (snapshot) => {
-        const data = snapshot.val();
-        const meals = data ? Object.values(data) : [];
-        callback(meals);
-    });
-
-    return unsubscribe;
+async function getMealsByDate(date) {
+    const response = await apiService.getMealsByDate(date);
+    return response.success ? response.meals : [];
 }
 
 // Export all necessary functions. `onAuthStateChanged` is removed from here.

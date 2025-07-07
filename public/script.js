@@ -524,17 +524,17 @@ function initProfilePage(userId) {
     async function loadProfile() {
         if (!userId) return;
         try {
-            const profile = await getUserProfile(userId);
-            if (profile) {
-                if (ageInput) ageInput.value = profile.age ?? '';
-                if (heightInput) heightInput.value = profile.height ?? '';
-                if (weightInput) weightInput.value = profile.weight ?? '';
-                if (fitnessGoalSelect) fitnessGoalSelect.value = profile.goal ?? 'reduce';
-                if (targetWeightInput) targetWeightInput.value = profile.targetWeight ?? '';
+            const profile = await getUserProfile();
+            if (profile && profile.success) {
+                if (ageInput) ageInput.value = profile.user.age ?? '';
+                if (heightInput) heightInput.value = profile.user.height ?? '';
+                if (weightInput) weightInput.value = profile.user.weight ?? '';
+                if (fitnessGoalSelect) fitnessGoalSelect.value = profile.user.goal ?? 'reduce';
+                if (targetWeightInput) targetWeightInput.value = profile.user.targetWeight ?? '';
                 calculateBMI();
                 toggleTargetWeight();
                 // Load weight history
-                profileHistory = profile.history || [];
+                profileHistory = profile.user.history || [];
                 renderWeightHistory();
                 // Show AI suggestion
                 showAISuggestion();
@@ -591,15 +591,19 @@ function initProfilePage(userId) {
                 targetWeight: parseFloat(targetWeightInput?.value) || null,
                 history
             };
-            await saveUserProfile(userId, profileData);
-            profileHistory = history;
-            renderWeightHistory();
-            if (successMessage) {
-                successMessage.classList.remove('hidden');
-                setTimeout(() => successMessage.classList.add('hidden'), 3000);
+            const res = await saveUserProfile(profileData);
+            if (res && res.success) {
+                profileHistory = history;
+                renderWeightHistory();
+                if (successMessage) {
+                    successMessage.classList.remove('hidden');
+                    setTimeout(() => successMessage.classList.add('hidden'), 3000);
+                }
+                // Reload profile to update UI
+                await loadProfile();
+            } else {
+                alert('Failed to save profile. Please try again.');
             }
-            // Reload profile to update UI
-            await loadProfile();
         } catch (error) {
             console.error('Error saving profile:', error);
             alert('Failed to save profile. Please try again.');
@@ -717,7 +721,7 @@ function initDashboardPage(userId) {
         }
     }
 
-    function fetchAndDisplayMeals() {
+    async function fetchAndDisplayMeals() {
         if (!userId) return;
         if (weekView) {
             // Show meals for the last 7 days
@@ -729,19 +733,25 @@ function initDashboardPage(userId) {
                 days.push(formatDate(d));
             }
             let allMeals = [];
-            let loaded = 0;
-            days.forEach(dateStr => {
-                getMealsByDate(userId, dateStr, (meals) => {
+            for (const dateStr of days) {
+                try {
+                    const meals = await getMealsByDate(dateStr);
                     allMeals.push({ date: dateStr, meals });
-                    loaded++;
-                    if (loaded === days.length) {
-                        displayMealsByDate(allMeals);
-                    }
-                });
-            });
+                } catch (error) {
+                    console.error(`Error fetching meals for ${dateStr}:`, error);
+                    allMeals.push({ date: dateStr, meals: [] });
+                }
+            }
+            displayMealsByDate(allMeals);
         } else {
             // Show meals for selected date
-            getMealsByDate(userId, formatDate(selectedDate), displayMeals);
+            try {
+                const meals = await getMealsByDate(formatDate(selectedDate));
+                displayMeals(meals);
+            } catch (error) {
+                console.error('Error fetching meals for selected date:', error);
+                displayMeals([]);
+            }
         }
     }
 
@@ -810,13 +820,16 @@ function initDashboardPage(userId) {
                     createdAt: new Date().toISOString()
                 };
                 
-                await logMeal(userId, mealData);
-                
-                // Clear input after successful log
-                const mealInputEl = document.getElementById('meal-input');
-                if (mealInputEl) mealInputEl.value = '';
-                
-                console.log("Meal logged successfully");
+                const res = await logMeal(mealData);
+                if (res && res.success) {
+                    // Clear input after successful log
+                    const mealInputEl = document.getElementById('meal-input');
+                    if (mealInputEl) mealInputEl.value = '';
+                    
+                    console.log("Meal logged successfully");
+                } else {
+                    showErrorModal("Failed to log meal.");
+                }
             } else {
                 showErrorModal("Could not get nutritional data for the meal.");
             }
@@ -893,8 +906,8 @@ function initDashboardPage(userId) {
         if(!userId || !goalSummaryContainer) return;
         
         try {
-            const profile = await getUserProfile(userId);
-            if(!profile || !profile.weight) {
+            const profile = await getUserProfile();
+            if(!profile || !profile.user || !profile.user.weight) {
                 goalSummaryContainer.innerHTML = '<p class="text-gray-500">Please complete your profile to see goals.</p>';
                 return;
             }
@@ -902,16 +915,16 @@ function initDashboardPage(userId) {
             goalSummaryContainer.innerHTML = `
                 <div class="flex justify-between items-center mb-2">
                     <span class="text-gray-600">Current Weight:</span> 
-                    <span class="font-bold">${profile.weight} kg</span>
+                    <span class="font-bold">${profile.user.weight} kg</span>
                 </div>
                 <div class="flex justify-between items-center">
                     <span class="text-gray-600">Goal:</span> 
-                    <span class="font-bold capitalize">${profile.goal} Weight</span>
+                    <span class="font-bold capitalize">${profile.user.goal} Weight</span>
                 </div>
-                ${profile.goal !== 'maintain' && profile.targetWeight ? 
+                ${profile.user.goal !== 'maintain' && profile.user.targetWeight ? 
                     `<div class="flex justify-between items-center mt-2">
                         <span class="text-gray-600">Target:</span> 
-                        <span class="font-bold">${profile.targetWeight} kg</span>
+                        <span class="font-bold">${profile.user.targetWeight} kg</span>
                     </div>` : ''}
             `;
         } catch (error) {
@@ -936,7 +949,15 @@ function initDashboardPage(userId) {
     // Subscribe to meal updates for today
     if (userId) {
         const today = new Date().toISOString().split('T')[0];
-        getMealsByDate(userId, today, displayMeals);
+        (async () => {
+            try {
+                const meals = await getMealsByDate(today);
+                displayMeals(meals);
+            } catch (error) {
+                console.error('Error fetching today\'s meals:', error);
+                displayMeals([]);
+            }
+        })();
         displayGoals();
     }
 

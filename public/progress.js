@@ -27,27 +27,36 @@ async function renderProgress(userId) {
         const dateStr = date.toISOString().split('T')[0];
         labels.push(dateStr);
         // Fetch meals for this date
-        await new Promise((resolve) => {
-            getMealsByDate(userId, dateStr, (meals) => {
-                let totalCalories = 0, totalProtein = 0, totalCarbs = 0, totalFats = 0;
-                meals.forEach(meal => {
-                    if (meal.total) {
-                        totalCalories += parseFloat(meal.total.calories) || 0;
-                        totalProtein += parseFloat(meal.total.protein) || 0;
-                        totalCarbs += parseFloat(meal.total.carbohydrates) || 0;
-                        totalFats += parseFloat(meal.total.fats) || 0;
-                    }
-                });
-                caloriesData.push(totalCalories);
-                proteinData.push(totalProtein);
-                carbsData.push(totalCarbs);
-                fatsData.push(totalFats);
-                resolve();
+        try {
+            const meals = await getMealsByDate(dateStr);
+            let totalCalories = 0, totalProtein = 0, totalCarbs = 0, totalFats = 0;
+            meals.forEach(meal => {
+                if (meal.total) {
+                    totalCalories += parseFloat(meal.total.calories) || 0;
+                    totalProtein += parseFloat(meal.total.protein) || 0;
+                    totalCarbs += parseFloat(meal.total.carbohydrates) || 0;
+                    totalFats += parseFloat(meal.total.fats) || 0;
+                }
             });
-        });
+            caloriesData.push(totalCalories);
+            proteinData.push(totalProtein);
+            carbsData.push(totalCarbs);
+            fatsData.push(totalFats);
+        } catch (error) {
+            console.error(`Error fetching meals for ${dateStr}:`, error);
+            caloriesData.push(0);
+            proteinData.push(0);
+            carbsData.push(0);
+            fatsData.push(0);
+        }
         // Fetch weight (use latest profile weight for now)
-        const profile = await getUserProfile(userId);
-        weightData.push(profile && profile.weight ? parseFloat(profile.weight) : null);
+        try {
+            const profile = await getUserProfile();
+            weightData.push(profile && profile.user && profile.user.weight ? parseFloat(profile.user.weight) : null);
+        } catch (error) {
+            console.error('Error fetching profile:', error);
+            weightData.push(null);
+        }
         // Fetch steps (from localStorage for now)
         const steps = localStorage.getItem('stepCount_' + dateStr);
         stepsData.push(steps ? parseInt(steps) : 0);
@@ -70,61 +79,62 @@ async function renderProgress(userId) {
             days.push(d.toISOString().split('T')[0]);
         }
         let allMeals = [];
-        let loaded = 0;
-        days.forEach(dateStr => {
-            getMealsByDate(userId, dateStr, (meals) => {
+        for (const dateStr of days) {
+            try {
+                const meals = await getMealsByDate(dateStr);
                 allMeals.push({ date: dateStr, meals });
-                loaded++;
-                if (loaded === days.length) {
-                    // Sort by date descending
-                    allMeals.sort((a, b) => b.date.localeCompare(a.date));
-                    mealLogDiv.innerHTML = '';
-                    allMeals.forEach(({ date, meals }) => {
-                        mealLogDiv.innerHTML += `<div class='mb-2 mt-4 text-sm text-gray-500 font-semibold'>${date}</div>`;
-                        if (!meals || meals.length === 0) {
-                            mealLogDiv.innerHTML += '<p class="text-gray-400 ml-2 mb-2">No meals logged.</p>';
-                            return;
+            } catch (error) {
+                console.error(`Error fetching meals for ${dateStr}:`, error);
+                allMeals.push({ date: dateStr, meals: [] });
+            }
+        }
+        
+        // Sort by date descending
+        allMeals.sort((a, b) => b.date.localeCompare(a.date));
+        mealLogDiv.innerHTML = '';
+        allMeals.forEach(({ date, meals }) => {
+            mealLogDiv.innerHTML += `<div class='mb-2 mt-4 text-sm text-gray-500 font-semibold'>${date}</div>`;
+            if (!meals || meals.length === 0) {
+                mealLogDiv.innerHTML += '<p class="text-gray-400 ml-2 mb-2">No meals logged.</p>';
+                return;
+            }
+            // Group by type
+            const mealOrder = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
+            const mealsByType = {};
+            meals.forEach(meal => {
+                const type = meal.type || 'Other';
+                if (!mealsByType[type]) mealsByType[type] = [];
+                mealsByType[type].push(meal);
+            });
+            mealOrder.forEach(type => {
+                if (mealsByType[type]) {
+                    let mealHtml = `<div class='mb-2'><h3 class='font-bold text-blue-600'>${type}</h3>`;
+                    mealsByType[type].forEach(meal => {
+                        if (meal.items && Array.isArray(meal.items)) {
+                            meal.items.forEach(item => {
+                                const calories = parseFloat(item.calories) || 0;
+                                mealHtml += `<p class='text-sm text-gray-600 ml-2'>• ${item.name || 'Unknown'} - ${calories.toFixed(0)} kcal</p>`;
+                            });
                         }
-                        // Group by type
-                        const mealOrder = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
-                        const mealsByType = {};
-                        meals.forEach(meal => {
-                            const type = meal.type || 'Other';
-                            if (!mealsByType[type]) mealsByType[type] = [];
-                            mealsByType[type].push(meal);
-                        });
-                        mealOrder.forEach(type => {
-                            if (mealsByType[type]) {
-                                let mealHtml = `<div class='mb-2'><h3 class='font-bold text-blue-600'>${type}</h3>`;
-                                mealsByType[type].forEach(meal => {
-                                    if (meal.items && Array.isArray(meal.items)) {
-                                        meal.items.forEach(item => {
-                                            const calories = parseFloat(item.calories) || 0;
-                                            mealHtml += `<p class='text-sm text-gray-600 ml-2'>• ${item.name || 'Unknown'} - ${calories.toFixed(0)} kcal</p>`;
-                                        });
-                                    }
-                                });
-                                mealHtml += `</div>`;
-                                mealLogDiv.innerHTML += mealHtml;
-                            }
-                        });
-                        // Show any other types
-                        Object.keys(mealsByType).forEach(type => {
-                            if (!mealOrder.includes(type)) {
-                                let mealHtml = `<div class='mb-2'><h3 class='font-bold text-blue-600'>${type}</h3>`;
-                                mealsByType[type].forEach(meal => {
-                                    if (meal.items && Array.isArray(meal.items)) {
-                                        meal.items.forEach(item => {
-                                            const calories = parseFloat(item.calories) || 0;
-                                            mealHtml += `<p class='text-sm text-gray-600 ml-2'>• ${item.name || 'Unknown'} - ${calories.toFixed(0)} kcal</p>`;
-                                        });
-                                    }
-                                });
-                                mealHtml += `</div>`;
-                                mealLogDiv.innerHTML += mealHtml;
-                            }
-                        });
                     });
+                    mealHtml += `</div>`;
+                    mealLogDiv.innerHTML += mealHtml;
+                }
+            });
+            // Show any other types
+            Object.keys(mealsByType).forEach(type => {
+                if (!mealOrder.includes(type)) {
+                    let mealHtml = `<div class='mb-2'><h3 class='font-bold text-blue-600'>${type}</h3>`;
+                    mealsByType[type].forEach(meal => {
+                        if (meal.items && Array.isArray(meal.items)) {
+                            meal.items.forEach(item => {
+                                const calories = parseFloat(item.calories) || 0;
+                                mealHtml += `<p class='text-sm text-gray-600 ml-2'>• ${item.name || 'Unknown'} - ${calories.toFixed(0)} kcal</p>`;
+                            });
+                        }
+                    });
+                    mealHtml += `</div>`;
+                    mealLogDiv.innerHTML += mealHtml;
                 }
             });
         });

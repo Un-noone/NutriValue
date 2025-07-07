@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Test - Firebase + MongoDB Integration</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8 max-w-2xl">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-900">API Integration Test</h1>
+            <p class="text-gray-600 mt-2">Testing Firebase Auth + MongoDB Backend</p>
+        </header>
+
+        <div class="bg-white p-8 rounded-lg shadow-lg">
+            <!-- Auth Status -->
+            <div class="mb-6 p-4 bg-gray-50 rounded-lg">
+                <h3 class="font-semibold mb-2">Authentication Status:</h3>
+                <p id="auth-status" class="text-sm">Checking...</p>
+            </div>
+
+            <!-- Test Buttons -->
+            <div class="space-y-4">
+                <button id="test-profile-btn" class="w-full bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors duration-300">
+                    Test Get Profile
+                </button>
+                
+                <button id="test-save-btn" class="w-full bg-green-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-green-700 transition-colors duration-300">
+                    Test Save Profile
+                </button>
+
+                <button id="test-users-btn" class="w-full bg-purple-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-purple-700 transition-colors duration-300">
+                    Test Get All Users
+                </button>
+
+                <button id="test-log-meal-btn" class="w-full bg-orange-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-orange-700 transition-colors duration-300">
+                    Test Log Meal
+                </button>
+
+                <button id="test-get-meals-btn" class="w-full bg-teal-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-teal-700 transition-colors duration-300">
+                    Test Get Today's Meals
+                </button>
+            </div>
+
+            <!-- Results -->
+            <div class="mt-6">
+                <h3 class="font-semibold mb-2">API Response:</h3>
+                <pre id="api-result" class="bg-gray-100 p-4 rounded-lg text-sm overflow-auto max-h-64"></pre>
+            </div>
+
+            <!-- Error Display -->
+            <div id="error-display" class="hidden mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg"></div>
+        </div>
+    </div>
+
+    <script type="module" src="firebase.js"></script>
+    <script type="module" src="api.js"></script>
+    <script type="module">
+        import { auth, onAuthStateChanged } from './firebase.js';
+        import { apiService } from './api.js';
+
+        const authStatus = document.getElementById('auth-status');
+        const apiResult = document.getElementById('api-result');
+        const errorDisplay = document.getElementById('error-display');
+
+        // Check auth status
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                authStatus.textContent = `✅ Authenticated as: ${user.email}`;
+                authStatus.className = 'text-sm text-green-600';
+            } else {
+                authStatus.textContent = '❌ Not authenticated';
+                authStatus.className = 'text-sm text-red-600';
+            }
+        });
+
+        // Test functions
+        document.getElementById('test-profile-btn').addEventListener('click', async () => {
+            try {
+                const result = await apiService.getUserProfile();
+                apiResult.textContent = JSON.stringify(result, null, 2);
+                errorDisplay.classList.add('hidden');
+            } catch (error) {
+                showError(error.message);
+            }
+        });
+
+        document.getElementById('test-save-btn').addEventListener('click', async () => {
+            try {
+                const testData = {
+                    name: 'Test User',
+                    email: auth.currentUser?.email || 'test@example.com'
+                };
+                const result = await apiService.saveUserProfile(testData);
+                apiResult.textContent = JSON.stringify(result, null, 2);
+                errorDisplay.classList.add('hidden');
+            } catch (error) {
+                showError(error.message);
+            }
+        });
+
+        document.getElementById('test-users-btn').addEventListener('click', async () => {
+            try {
+                const result = await apiService.getAllUsers();
+                apiResult.textContent = JSON.stringify(result, null, 2);
+                errorDisplay.classList.add('hidden');
+            } catch (error) {
+                showError(error.message);
+            }
+        });
+
+        document.getElementById('test-log-meal-btn').addEventListener('click', async () => {
+            try {
+                const testMealData = {
+                    date: new Date().toISOString().split('T')[0],
+                    type: 'Snack',
+                    items: [
+                        {
+                            name: 'Apple',
+                            calories: 95,
+                            protein: 0.5,
+                            carbohydrates: 25,
+                            fats: 0.3,
+                            fiber: 4.4,
+                            sugar: 19
+                        }
+                    ],
+                    total: {
+                        calories: 95,
+                        protein: 0.5,
+                        carbohydrates: 25,
+                        fats: 0.3,
+                        fiber: 4.4,
+                        sugar: 19
+                    }
+                };
+                const result = await apiService.logMeal(testMealData);
+                apiResult.textContent = JSON.stringify(result, null, 2);
+                errorDisplay.classList.add('hidden');
+            } catch (error) {
+                showError(error.message);
+            }
+        });
+
+        document.getElementById('test-get-meals-btn').addEventListener('click', async () => {
+            try {
+                const today = new Date().toISOString().split('T')[0];
+                const result = await apiService.getMealsByDate(today);
+                apiResult.textContent = JSON.stringify(result, null, 2);
+                errorDisplay.classList.add('hidden');
+            } catch (error) {
+                showError(error.message);
+            }
+        });
+
+        function showError(message) {
+            errorDisplay.textContent = `Error: ${message}`;
+            errorDisplay.classList.remove('hidden');
+            apiResult.textContent = '';
+        }
+    </script>
+</body>
+</html> 
