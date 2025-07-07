@@ -1,6 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const path = require('path');
 // Removed: const admin = require('firebase-admin');
 // Removed: const serviceAccount = require('/etc/secrets/serviceAccountKey.json');hi
 
@@ -10,6 +11,8 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
 
 // MongoDB Atlas connection with error handling
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://vasuvasu06092005:$Mom$dad$2005$@cluster0.hvvxk.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
@@ -233,5 +236,11 @@ app.use((err, req, res, next) => {
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📊 Health check: http://localhost:${PORT}/health`);
+  console.log(`📊 Health check: http://localhost:${PORT}/admin`);
+});
+
+app.get('/admin', async (req, res) => {
+  // Fetch all users for the admin portal
+  const users = await User.find({}).lean();
+  res.render('admin', { users });
 });
