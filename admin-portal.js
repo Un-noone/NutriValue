@@ -41,6 +41,8 @@ const userSchema = new mongoose.Schema({
     weight: Number,
     date: { type: Date, default: Date.now }
   }],
+  disabled: { type: Boolean, default: false },
+  subscription: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
@@ -239,8 +241,37 @@ app.listen(PORT, () => {
   console.log(`📊 Health check: http://localhost:${PORT}/admin`);
 });
 
+// Admin Portal Route
 app.get('/admin', async (req, res) => {
-  // Fetch all users for the admin portal
   const users = await User.find({}).lean();
   res.render('admin', { users });
+});
+
+// Toggle user activation
+app.post('/admin/user/:uid/toggle', async (req, res) => {
+  const { uid } = req.params;
+  const { disable } = req.body;
+  const user = await User.findOne({ uid });
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  user.disabled = !!disable;
+  await user.save();
+  res.json({ success: true });
+});
+
+// Delete user
+app.post('/admin/user/:uid/delete', async (req, res) => {
+  const { uid } = req.params;
+  await User.deleteOne({ uid });
+  res.json({ success: true });
+});
+
+// Manage subscription
+app.post('/admin/user/:uid/subscription', async (req, res) => {
+  const { uid } = req.params;
+  const { subscribe } = req.body;
+  const user = await User.findOne({ uid });
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  user.subscription = !!subscribe;
+  await user.save();
+  res.json({ success: true });
 });
