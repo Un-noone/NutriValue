@@ -17,7 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (user) {
             // Show subscription popup on login (not on login.html)
             if (page !== 'login.html') {
-                showSubscriptionPopup();
+                showSubscriptionPopupIfNeeded();
             }
             // User is signed in.
             // If they are on the login page, redirect them to the main page.
@@ -40,28 +40,36 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-function showSubscriptionPopup() {
+function showSubscriptionPopupIfNeeded() {
     // Only show if not already shown in this session
     if (sessionStorage.getItem('subscriptionPopupShown')) return;
-    sessionStorage.setItem('subscriptionPopupShown', '1');
-    const popup = document.createElement('div');
-    popup.innerHTML = `
-        <div style="position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.4);z-index:9999;display:flex;align-items:center;justify-content:center;">
-            <div style="background:white;padding:2rem 2.5rem;border-radius:1rem;box-shadow:0 4px 24px rgba(0,0,0,0.15);max-width:90vw;text-align:center;">
-                <h2 style="font-size:1.5rem;font-weight:bold;color:#2563eb;">Upgrade to Pro</h2>
-                <p style="margin:1rem 0 1.5rem 0;">Get <b>unlimited AI meal suggestions</b> and tips for just <b>$5/month</b>.</p>
-                <button id="popup-subscribe-btn" style="background:#2563eb;color:white;font-weight:bold;padding:0.75rem 2rem;border-radius:0.5rem;font-size:1rem;">Subscribe Now</button>
-                <button id="popup-close-btn" style="margin-left:1rem;background:#e5e7eb;color:#374151;font-weight:bold;padding:0.75rem 2rem;border-radius:0.5rem;font-size:1rem;">Maybe Later</button>
+    // Check subscription status
+    getUserProfile().then(profile => {
+        if (profile && profile.success && profile.user.subscription) {
+            // User has subscription, do not show popup
+            return;
+        }
+        // Show popup
+        sessionStorage.setItem('subscriptionPopupShown', '1');
+        const popup = document.createElement('div');
+        popup.innerHTML = `
+            <div style="position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.4);z-index:9999;display:flex;align-items:center;justify-content:center;">
+                <div style="background:white;padding:2rem 2.5rem;border-radius:1rem;box-shadow:0 4px 24px rgba(0,0,0,0.15);max-width:90vw;text-align:center;">
+                    <h2 style="font-size:1.5rem;font-weight:bold;color:#2563eb;">Upgrade to Pro</h2>
+                    <p style="margin:1rem 0 1.5rem 0;">Get <b>unlimited AI meal suggestions</b> and tips for just <b>$5/month</b>.</p>
+                    <button id="popup-subscribe-btn" style="background:#2563eb;color:white;font-weight:bold;padding:0.75rem 2rem;border-radius:0.5rem;font-size:1rem;">Subscribe Now</button>
+                    <button id="popup-close-btn" style="margin-left:1rem;background:#e5e7eb;color:#374151;font-weight:bold;padding:0.75rem 2rem;border-radius:0.5rem;font-size:1rem;">Maybe Later</button>
+                </div>
             </div>
-        </div>
-    `;
-    document.body.appendChild(popup);
-    document.getElementById('popup-subscribe-btn').onclick = () => {
-        window.location.href = 'subscription.html';
-    };
-    document.getElementById('popup-close-btn').onclick = () => {
-        popup.remove();
-    };
+        `;
+        document.body.appendChild(popup);
+        document.getElementById('popup-subscribe-btn').onclick = () => {
+            window.location.href = 'subscription.html';
+        };
+        document.getElementById('popup-close-btn').onclick = () => {
+            popup.remove();
+        };
+    });
 }
 
 function initPage(userId) {
@@ -527,12 +535,28 @@ function initProfilePage(userId) {
         if (!userId) return;
         try {
             const profile = await getUserProfile();
+            const subscriptionIndicator = document.getElementById('subscription-indicator');
             if (profile && profile.success) {
                 if (ageInput) ageInput.value = profile.user.age ?? '';
                 if (heightInput) heightInput.value = profile.user.height ?? '';
                 if (weightInput) weightInput.value = profile.user.weight ?? '';
                 if (fitnessGoalSelect) fitnessGoalSelect.value = profile.user.goal ?? 'reduce';
                 if (targetWeightInput) targetWeightInput.value = profile.user.targetWeight ?? '';
+                if (subscriptionIndicator) {
+                    if (profile.user.subscription) {
+                        subscriptionIndicator.classList.remove('hidden');
+                    } else {
+                        subscriptionIndicator.classList.add('hidden');
+                    }
+                }
+                if (document.getElementById('profile-name')) {
+                    document.getElementById('profile-name').textContent = profile.user.name || '';
+                }
+                if (document.getElementById('profile-age')) document.getElementById('profile-age').textContent = profile.user.age ?? '';
+                if (document.getElementById('profile-height')) document.getElementById('profile-height').textContent = profile.user.height ?? '';
+                if (document.getElementById('profile-weight')) document.getElementById('profile-weight').textContent = profile.user.weight ?? '';
+                if (document.getElementById('profile-goal')) document.getElementById('profile-goal').textContent = profile.user.goal ?? '';
+                if (document.getElementById('profile-target-weight')) document.getElementById('profile-target-weight').textContent = profile.user.targetWeight ?? '';
                 calculateBMI();
                 toggleTargetWeight();
                 // Load weight history
@@ -547,6 +571,15 @@ function initProfilePage(userId) {
                 if (weightInput) weightInput.value = '';
                 if (fitnessGoalSelect) fitnessGoalSelect.value = 'reduce';
                 if (targetWeightInput) targetWeightInput.value = '';
+                if (subscriptionIndicator) subscriptionIndicator.classList.add('hidden');
+                if (document.getElementById('profile-name')) {
+                    document.getElementById('profile-name').textContent = '';
+                }
+                if (document.getElementById('profile-age')) document.getElementById('profile-age').textContent = '';
+                if (document.getElementById('profile-height')) document.getElementById('profile-height').textContent = '';
+                if (document.getElementById('profile-weight')) document.getElementById('profile-weight').textContent = '';
+                if (document.getElementById('profile-goal')) document.getElementById('profile-goal').textContent = '';
+                if (document.getElementById('profile-target-weight')) document.getElementById('profile-target-weight').textContent = '';
                 profileHistory = [];
                 renderWeightHistory();
                 showAISuggestion();
@@ -558,6 +591,17 @@ function initProfilePage(userId) {
             if (weightInput) weightInput.value = '';
             if (fitnessGoalSelect) fitnessGoalSelect.value = 'reduce';
             if (targetWeightInput) targetWeightInput.value = '';
+            if (document.getElementById('profile-name')) {
+                document.getElementById('profile-name').textContent = '';
+            }
+            if (document.getElementById('profile-age')) document.getElementById('profile-age').textContent = '';
+            if (document.getElementById('profile-height')) document.getElementById('profile-height').textContent = '';
+            if (document.getElementById('profile-weight')) document.getElementById('profile-weight').textContent = '';
+            if (document.getElementById('profile-goal')) document.getElementById('profile-goal').textContent = '';
+            if (document.getElementById('profile-target-weight')) document.getElementById('profile-target-weight').textContent = '';
+            if (document.getElementById('subscription-indicator')) {
+                document.getElementById('subscription-indicator').classList.add('hidden');
+            }
             profileHistory = [];
             renderWeightHistory();
             showAISuggestion();

@@ -2,6 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
+const session = require('express-session');
 // Removed: const admin = require('firebase-admin');
 // Removed: const serviceAccount = require('/etc/secrets/serviceAccountKey.json');hi
 
@@ -241,14 +242,54 @@ app.listen(PORT, () => {
   console.log(`📊 Health check: http://localhost:${PORT}/admin`);
 });
 
-// Admin Portal Route
-app.get('/admin', async (req, res) => {
+// Admin credentials (for demo, use env vars in production)
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@example.com';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'supersecret',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: false } // Set to true if using HTTPS
+}));
+
+function requireAdminAuth(req, res, next) {
+  if (req.session && req.session.admin) {
+    return next();
+  }
+  return res.redirect('/admin/login');
+}
+
+// Admin login page
+app.get('/admin/login', (req, res) => {
+  res.render('login');
+});
+
+// Admin login POST
+app.post('/admin/login', express.urlencoded({ extended: true }), (req, res) => {
+  const { email, password } = req.body;
+  if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
+    req.session.admin = true;
+    return res.redirect('/admin');
+  }
+  res.render('login', { error: 'Invalid credentials' });
+});
+
+// Admin logout
+app.get('/admin/logout', (req, res) => {
+  req.session.destroy(() => {
+    res.redirect('/admin/login');
+  });
+});
+
+// Admin Portal Route (protected)
+app.get('/admin', requireAdminAuth, async (req, res) => {
   const users = await User.find({}).lean();
   res.render('admin', { users });
 });
 
-// Toggle user activation
-app.post('/admin/user/:uid/toggle', async (req, res) => {
+// Toggle user activation (protected)
+app.post('/admin/user/:uid/toggle', requireAdminAuth, async (req, res) => {
   const { uid } = req.params;
   const { disable } = req.body;
   const user = await User.findOne({ uid });
@@ -258,15 +299,15 @@ app.post('/admin/user/:uid/toggle', async (req, res) => {
   res.json({ success: true });
 });
 
-// Delete user
-app.post('/admin/user/:uid/delete', async (req, res) => {
+// Delete user (protected)
+app.post('/admin/user/:uid/delete', requireAdminAuth, async (req, res) => {
   const { uid } = req.params;
   await User.deleteOne({ uid });
   res.json({ success: true });
 });
 
-// Manage subscription
-app.post('/admin/user/:uid/subscription', async (req, res) => {
+// Manage subscription (protected)
+app.post('/admin/user/:uid/subscription', requireAdminAuth, async (req, res) => {
   const { uid } = req.params;
   const { subscribe } = req.body;
   const user = await User.findOne({ uid });

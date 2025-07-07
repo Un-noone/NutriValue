@@ -28,29 +28,20 @@
 
     <div class="container mx-auto p-4 md:p-8 max-w-2xl">
         <div class="bg-white p-6 rounded-lg shadow-lg">
-            <h2 class="text-2xl font-bold mb-6 border-b pb-4">Personal Information</h2>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <!-- Age -->
-                <div>
-                    <label for="age" class="block text-sm font-medium text-gray-700">Age</label>
-                    <input type="number" id="age" class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center space-x-3">
+                    <h2 id="profile-name" class="text-2xl font-bold text-gray-900">&nbsp;</h2>
+                    <div id="subscription-indicator" class="hidden ml-2">
+                        <span class="inline-block bg-green-100 text-green-800 text-xs font-semibold px-3 py-1 rounded-full">Pro Subscriber</span>
+                    </div>
                 </div>
-                <!-- Height -->
-                <div>
-                    <label for="height" class="block text-sm font-medium text-gray-700">Height (cm)</label>
-                    <input type="number" id="height" class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500">
-                </div>
-                <!-- Weight -->
-                <div>
-                    <label for="weight" class="block text-sm font-medium text-gray-700">Weight (kg)</label>
-                    <input type="number" id="weight" class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500">
-                </div>
-                <!-- BMI -->
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">BMI</label>
-                    <p id="bmi-result" class="mt-1 text-lg font-semibold p-3 bg-gray-100 rounded-lg h-12 flex items-center">-</p>
-                </div>
+            </div>
+            <div class="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4 bg-blue-50 rounded-lg p-4">
+                <div><span class="font-semibold text-gray-700">Age:</span> <span id="profile-age"></span></div>
+                <div><span class="font-semibold text-gray-700">Height:</span> <span id="profile-height"></span> cm</div>
+                <div><span class="font-semibold text-gray-700">Weight:</span> <span id="profile-weight"></span> kg</div>
+                <div><span class="font-semibold text-gray-700">Goal:</span> <span id="profile-goal"></span></div>
+                <div><span class="font-semibold text-gray-700">Target Weight:</span> <span id="profile-target-weight"></span> kg</div>
             </div>
 
             <h2 class="text-2xl font-bold mt-8 mb-6 border-b pb-4">My Goals</h2>
@@ -95,6 +86,12 @@
                     <button id="new-suggestion-btn" class="bg-blue-100 text-blue-700 px-4 py-2 rounded hover:bg-blue-200">Get Another Suggestion</button>
                 </div>
             </div>
+
+            <!-- Subscription Indicator -->
+            <div id="subscription-indicator" class="mb-4 hidden">
+                <span class="inline-block bg-green-100 text-green-800 text-xs font-semibold px-3 py-1 rounded-full">Pro Subscriber</span>
+            </div>
+        </div>
     </div>
 
     <script type="module" src="firebase.js"></script>
