@@ -64,6 +64,19 @@ async function getMealsByDate(date) {
     return response.success ? response.meals : [];
 }
 
+/**
+ * Checks if the current user is deactivated.
+ * @returns {Promise<boolean>} True if deactivated, false otherwise.
+ */
+async function isUserDeactivated() {
+    try {
+        const profile = await getUserProfile();
+        return profile && profile.user && profile.user.disabled;
+    } catch (e) {
+        return false;
+    }
+}
+
 // Export all necessary functions. `onAuthStateChanged` is removed from here.
 export { 
     auth, 
@@ -75,5 +88,6 @@ export {
     getMealsByDate,
     createUserWithEmailAndPassword,
     signInWithEmailAndPassword,
-    signOut
+    signOut,
+    isUserDeactivated
 };

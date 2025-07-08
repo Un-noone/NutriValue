@@ -81,8 +81,19 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', message: 'Server is running' });
 });
 
-// Create or update user profile (no auth)
-app.post('/api/user/profile', async (req, res) => {
+// Middleware to block disabled users
+async function blockIfDisabled(req, res, next) {
+  const uid = req.body.uid || req.query.uid;
+  if (!uid) return next(); // Allow if no uid (e.g., signup)
+  const user = await User.findOne({ uid });
+  if (user && user.disabled) {
+    return res.status(403).json({ error: 'Account deactivated' });
+  }
+  next();
+}
+
+// Apply to all user-facing API endpoints
+app.post('/api/user/profile', blockIfDisabled, async (req, res) => {
   try {
     const { uid, name, email, age, height, weight, goal, targetWeight, history } = req.body;
     if (!uid || !email) return res.status(400).json({ error: 'uid and email are required' });
@@ -120,7 +131,7 @@ app.post('/api/user/profile', async (req, res) => {
 });
 
 // Get user profile (no auth)
-app.get('/api/user/profile', async (req, res) => {
+app.get('/api/user/profile', blockIfDisabled, async (req, res) => {
   try {
     const { uid } = req.query;
     if (!uid) return res.status(400).json({ error: 'uid is required' });
@@ -136,7 +147,7 @@ app.get('/api/user/profile', async (req, res) => {
 });
 
 // Get all users (no auth)
-app.get('/api/users', async (req, res) => {
+app.get('/api/users', blockIfDisabled, async (req, res) => {
   try {
     const users = await User.find({}).select('-__v');
     res.json({ success: true, users });
@@ -147,7 +158,7 @@ app.get('/api/users', async (req, res) => {
 });
 
 // Log a meal (no auth)
-app.post('/api/meals', async (req, res) => {
+app.post('/api/meals', blockIfDisabled, async (req, res) => {
   try {
     const { uid, date, type, items, total } = req.body;
     if (!uid || !date) return res.status(400).json({ error: 'uid and date are required' });
@@ -167,7 +178,7 @@ app.post('/api/meals', async (req, res) => {
 });
 
 // Get meals by date (no auth)
-app.get('/api/meals/:date', async (req, res) => {
+app.get('/api/meals/:date', blockIfDisabled, async (req, res) => {
   try {
     const { uid } = req.query;
     const { date } = req.params;
@@ -181,7 +192,7 @@ app.get('/api/meals/:date', async (req, res) => {
 });
 
 // Get meals by date range (no auth)
-app.get('/api/meals/range/:startDate/:endDate', async (req, res) => {
+app.get('/api/meals/range/:startDate/:endDate', blockIfDisabled, async (req, res) => {
   try {
     const { uid } = req.query;
     const { startDate, endDate } = req.params;
@@ -198,7 +209,7 @@ app.get('/api/meals/range/:startDate/:endDate', async (req, res) => {
 });
 
 // Get all meals for a user (no auth)
-app.get('/api/meals', async (req, res) => {
+app.get('/api/meals', blockIfDisabled, async (req, res) => {
   try {
     const { uid, limit = 50, offset = 0 } = req.query;
     if (!uid) return res.status(400).json({ error: 'uid is required' });
@@ -214,7 +225,7 @@ app.get('/api/meals', async (req, res) => {
 });
 
 // Delete a meal (no auth)
-app.delete('/api/meals/:mealId', async (req, res) => {
+app.delete('/api/meals/:mealId', blockIfDisabled, async (req, res) => {
   try {
     const { uid } = req.query;
     const { mealId } = req.params;
@@ -243,8 +254,8 @@ app.listen(PORT, () => {
 });
 
 // Admin credentials (for demo, use env vars in production)
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@example.com';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'vasu@edts.ca';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '$Mom$dad$2005$';
 
 app.use(session({
   secret: process.env.SESSION_SECRET || 'supersecret',

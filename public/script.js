@@ -7,14 +7,107 @@ import {
     getMealsByDate,
     createUserWithEmailAndPassword,
     signInWithEmailAndPassword,
-    signOut
+    signOut,
+    isUserDeactivated
 } from './firebase.js';
+
+// --- GLOBAL AUTO-REFRESH AND INACTIVITY LOGOUT ---
+let autoRefreshInterval = null;
+let inactivityTimeout = null;
+let logoutCountdownInterval = null;
+let logoutCountdown = 10;
+let inactivityModal = null;
+
+function startAutoRefresh() {
+    stopAutoRefresh();
+    autoRefreshInterval = setInterval(() => {
+        refreshAllData();
+    }, 30000); // 30 seconds
+}
+function stopAutoRefresh() {
+    if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+}
+async function refreshAllData() {
+    // Refresh profile and subscription status
+    if (typeof loadProfile === 'function') {
+        await safeApiCall(getUserProfile).then(profile => {
+            if (profile && profile.success) {
+                // Update UI if needed (profile page already does this)
+                if (typeof loadProfile === 'function') loadProfile();
+            }
+        }).catch(()=>{});
+    }
+    // Refresh dashboard/meal log
+    if (typeof fetchAndDisplayMeals === 'function') fetchAndDisplayMeals();
+    // Refresh progress page
+    if (typeof renderProgress === 'function' && typeof auth !== 'undefined' && auth.currentUser) renderProgress(auth.currentUser.uid);
+}
+
+function resetInactivityTimer() {
+    if (inactivityTimeout) clearTimeout(inactivityTimeout);
+    if (logoutCountdownInterval) clearInterval(logoutCountdownInterval);
+    if (inactivityModal) {
+        inactivityModal.remove();
+        inactivityModal = null;
+    }
+    inactivityTimeout = setTimeout(showInactivityModal, 60000); // 1 minute
+}
+
+function showInactivityModal() {
+    logoutCountdown = 10;
+    inactivityModal = document.createElement('div');
+    inactivityModal.innerHTML = `
+      <div style="position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;">
+        <div style="background:white;padding:2rem 2.5rem;border-radius:1rem;box-shadow:0 4px 24px rgba(0,0,0,0.15);max-width:90vw;text-align:center;">
+          <h2 style="font-size:1.5rem;font-weight:bold;color:#ef4444;">Inactive</h2>
+          <p style="margin:1rem 0 1.5rem 0;">You have been inactive. Do you want to continue your session?</p>
+          <div id="logout-timer" style="font-size:1.2rem;margin-bottom:1rem;">Logging out in <span id="logout-countdown">10</span> seconds...</div>
+          <button id="continue-session-btn" style="background:#10b981;color:white;font-weight:bold;padding:0.75rem 2rem;border-radius:0.5rem;font-size:1rem;">Continue</button>
+          <button id="logout-now-btn" style="margin-left:1rem;background:#ef4444;color:white;font-weight:bold;padding:0.75rem 2rem;border-radius:0.5rem;font-size:1rem;">Log Out</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(inactivityModal);
+    document.getElementById('continue-session-btn').onclick = () => {
+        resetInactivityTimer();
+    };
+    document.getElementById('logout-now-btn').onclick = async () => {
+        await signOut(auth);
+        window.location.href = 'login.html';
+    };
+    logoutCountdownInterval = setInterval(async () => {
+        logoutCountdown--;
+        document.getElementById('logout-countdown').textContent = logoutCountdown;
+        if (logoutCountdown <= 0) {
+            clearInterval(logoutCountdownInterval);
+            await signOut(auth);
+            window.location.href = 'login.html';
+        }
+    }, 1000);
+}
+
+// Listen for user activity
+['mousemove','keydown','mousedown','touchstart'].forEach(evt => {
+    window.addEventListener(evt, resetInactivityTimer, true);
+});
+
+// Start timers on page load
+window.addEventListener('DOMContentLoaded', () => {
+    startAutoRefresh();
+    resetInactivityTimer();
+});
 
 document.addEventListener('DOMContentLoaded', () => {
     const page = window.location.pathname.split("/").pop() || 'index.html';
 
-    onAuthStateChanged(auth, user => {
+    onAuthStateChanged(auth, async user => {
         if (user) {
+            // Check if user is deactivated
+            if (await isUserDeactivated()) {
+                await signOut(auth);
+                showDeactivatedModal();
+                return;
+            }
             // Show subscription popup on login (not on login.html)
             if (page !== 'login.html') {
                 showSubscriptionPopupIfNeeded();
@@ -1017,6 +1110,7 @@ function initDashboardPage(userId) {
         mealLogDateInput.addEventListener('change', (e) => {
             selectedDate = new Date(e.target.value);
             weekView = false;
+            updateMealLogDateInput();
             fetchAndDisplayMeals();
         });
     }
@@ -1151,4 +1245,37 @@ function sendSignupNotification(email, approvalToken) {
     }, function(error) {
         console.error('Failed to send signup notification:', error);
     });
+}
+
+// Show deactivation modal
+function showDeactivatedModal() {
+    const modal = document.createElement('div');
+    modal.innerHTML = `
+      <div style="position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;">
+        <div style="background:white;padding:2rem 2.5rem;border-radius:1rem;box-shadow:0 4px 24px rgba(0,0,0,0.15);max-width:90vw;text-align:center;">
+          <h2 style="font-size:1.5rem;font-weight:bold;color:#ef4444;">Account Deactivated</h2>
+          <p style="margin:1rem 0 1.5rem 0;">Your account has been deactivated by the admin. Please contact support for help.</p>
+          <button id="deactivated-ok-btn" style="background:#ef4444;color:white;font-weight:bold;padding:0.75rem 2rem;border-radius:0.5rem;font-size:1rem;">OK</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    document.getElementById('deactivated-ok-btn').onclick = () => {
+        modal.remove();
+        window.location.href = 'login.html';
+    };
+}
+
+// Global fetch wrapper to catch deactivation error
+async function safeApiCall(fn, ...args) {
+    try {
+        return await fn(...args);
+    } catch (error) {
+        if (error && error.message && error.message.includes('Account deactivated')) {
+            await signOut(auth);
+            showDeactivatedModal();
+            throw error;
+        }
+        throw error;
+    }
 }
