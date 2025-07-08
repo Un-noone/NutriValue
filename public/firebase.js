@@ -28,7 +28,79 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
-// --- Realtime Database Functions ---
+// --- Enhanced Functions with Deactivation Check ---
+
+/**
+ * Checks if the current user is deactivated by calling the backend
+ * @returns {Promise<boolean>} True if deactivated, false otherwise.
+ */
+async function isUserDeactivated() {
+    try {
+        const user = auth.currentUser;
+        if (!user) return false;
+        
+        // Try to get user profile - this will fail if user is deactivated
+        const response = await fetch(`http://localhost:3000/api/user/profile?uid=${user.uid}`);
+        const data = await response.json();
+        
+        if (response.status === 403 && data.error === 'Account deactivated') {
+            return true;
+        }
+        return false;
+    } catch (error) {
+        console.error('Error checking user status:', error);
+        return false;
+    }
+}
+
+/**
+ * Shows deactivation modal and signs out user
+ */
+function showDeactivatedModal() {
+    // Create modal
+    const modal = document.createElement('div');
+    modal.innerHTML = `
+        <div style="position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.8);z-index:9999;display:flex;align-items:center;justify-content:center;">
+            <div style="background:white;padding:2rem 2.5rem;border-radius:1rem;box-shadow:0 4px 24px rgba(0,0,0,0.15);max-width:90vw;text-align:center;">
+                <h2 style="font-size:1.5rem;font-weight:bold;color:#ef4444;margin-bottom:1rem;">Account Deactivated</h2>
+                <p style="margin:0 0 1.5rem 0;color:#374151;">Your account has been deactivated by the administrator. Please contact support for assistance.</p>
+                <button id="deactivated-ok-btn" style="background:#ef4444;color:white;font-weight:bold;padding:0.75rem 2rem;border:none;border-radius:0.5rem;font-size:1rem;cursor:pointer;">OK</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    
+    document.getElementById('deactivated-ok-btn').onclick = async () => {
+        modal.remove();
+        await signOut(auth);
+        window.location.href = 'login.html';
+    };
+}
+
+/**
+ * Enhanced sign in function that checks for deactivation
+ */
+async function signInAndCheckStatus(email, password) {
+    try {
+        // First, sign in with Firebase
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+        
+        // Then check if user is deactivated
+        const isDeactivated = await isUserDeactivated();
+        
+        if (isDeactivated) {
+            // Sign out immediately and show modal
+            await signOut(auth);
+            showDeactivatedModal();
+            throw new Error('Account deactivated');
+        }
+        
+        return userCredential;
+    } catch (error) {
+        throw error;
+    }
+}
 
 /**
  * Saves user profile data to MongoDB via backend API.
@@ -64,30 +136,32 @@ async function getMealsByDate(date) {
     return response.success ? response.meals : [];
 }
 
-/**
- * Checks if the current user is deactivated.
- * @returns {Promise<boolean>} True if deactivated, false otherwise.
- */
-async function isUserDeactivated() {
-    try {
-        const profile = await getUserProfile();
-        return profile && profile.user && profile.user.disabled;
-    } catch (e) {
-        return false;
-    }
-}
+// Enhanced auth state observer that checks for deactivation
+const enhancedOnAuthStateChanged = (callback) => {
+    return onAuthStateChanged(auth, async (user) => {
+        if (user) {
+            // Check if user is deactivated whenever auth state changes
+            const isDeactivated = await isUserDeactivated();
+            if (isDeactivated) {
+                showDeactivatedModal();
+                return;
+            }
+        }
+        callback(user);
+    });
+};
 
-// Export all necessary functions. `onAuthStateChanged` is removed from here.
+// Export all necessary functions
 export { 
     auth, 
     db, 
-    onAuthStateChanged,
+    onAuthStateChanged: enhancedOnAuthStateChanged, // Use enhanced version
     saveUserProfile, 
     getUserProfile, 
     logMeal, 
     getMealsByDate,
     createUserWithEmailAndPassword,
-    signInWithEmailAndPassword,
+    signInWithEmailAndPassword: signInAndCheckStatus, // Use enhanced sign in
     signOut,
     isUserDeactivated
 };

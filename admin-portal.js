@@ -4,8 +4,6 @@ const cors = require('cors');
 const path = require('path');
 const session = require('express-session');
 const MongoStore = require('connect-mongo');
-// Removed: const admin = require('firebase-admin');
-// Removed: const serviceAccount = require('/etc/secrets/serviceAccountKey.json');hi
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -74,28 +72,53 @@ const mealSchema = new mongoose.Schema({
 const User = mongoose.model('User', userSchema);
 const Meal = mongoose.model('Meal', mealSchema);
 
+// Admin credentials
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'vasu@edts.ca';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '$Mom$dad$2005$';
+
+// Session middleware
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'supersecret',
+  resave: false,
+  saveUninitialized: false,
+  store: MongoStore.create({ 
+    mongoUrl: MONGODB_URI,
+    touchAfter: 24 * 3600 // lazy session update
+  }),
+  cookie: { 
+    secure: false, // Set to true if using HTTPS
+    maxAge: 1000 * 60 * 60 * 24 // 24 hours
+  }
+}));
+
+// Serve static files from public directory FIRST
+app.use(express.static(path.join(__dirname, 'public')));
+
 // Health check route
 app.get('/health', (req, res) => {
-  res.json({ status: 'OK', message: 'Server is running' });
+  res.json({ 
+    status: 'OK', 
+    message: 'Server is running locally with MongoDB Atlas',
+    timestamp: new Date().toISOString(),
+    database: 'Connected to MongoDB Atlas'
+  });
 });
 
-// Middleware to block disabled users (except for new user creation)
+// Middleware to block disabled users
 async function blockIfDisabled(req, res, next) {
   const uid = req.body.uid || req.query.uid;
-  if (!uid) return next(); // Allow if no uid (e.g., signup)
+  if (!uid) return next();
   const user = await User.findOne({ uid });
   if (user && user.disabled) {
-    // Allow POST /api/user/profile only if user does not exist (new user creation)
     if (req.method === 'POST' && req.path === '/api/user/profile') {
       return res.status(403).json({ error: 'Account deactivated' });
     }
-    // Block all other endpoints
     return res.status(403).json({ error: 'Account deactivated' });
   }
   next();
 }
 
-// Apply to all user-facing API endpoints
+// API Routes
 app.post('/api/user/profile', blockIfDisabled, async (req, res) => {
   try {
     const { uid, name, email, age, height, weight, goal, targetWeight, history } = req.body;
@@ -134,7 +157,6 @@ app.post('/api/user/profile', blockIfDisabled, async (req, res) => {
   }
 });
 
-// Get user profile (no auth)
 app.get('/api/user/profile', blockIfDisabled, async (req, res) => {
   try {
     const { uid } = req.query;
@@ -151,7 +173,6 @@ app.get('/api/user/profile', blockIfDisabled, async (req, res) => {
   }
 });
 
-// Get all users (no auth)
 app.get('/api/users', blockIfDisabled, async (req, res) => {
   try {
     const users = await User.find({}).select('-__v');
@@ -162,7 +183,6 @@ app.get('/api/users', blockIfDisabled, async (req, res) => {
   }
 });
 
-// Log a meal (no auth)
 app.post('/api/meals', blockIfDisabled, async (req, res) => {
   try {
     const { uid, date, type, items, total } = req.body;
@@ -182,7 +202,6 @@ app.post('/api/meals', blockIfDisabled, async (req, res) => {
   }
 });
 
-// Get meals by date (no auth)
 app.get('/api/meals/:date', blockIfDisabled, async (req, res) => {
   try {
     const { uid } = req.query;
@@ -196,7 +215,6 @@ app.get('/api/meals/:date', blockIfDisabled, async (req, res) => {
   }
 });
 
-// Get meals by date range (no auth)
 app.get('/api/meals/range/:startDate/:endDate', blockIfDisabled, async (req, res) => {
   try {
     const { uid } = req.query;
@@ -213,7 +231,6 @@ app.get('/api/meals/range/:startDate/:endDate', blockIfDisabled, async (req, res
   }
 });
 
-// Get all meals for a user (no auth)
 app.get('/api/meals', blockIfDisabled, async (req, res) => {
   try {
     const { uid, limit = 50, offset = 0 } = req.query;
@@ -229,7 +246,6 @@ app.get('/api/meals', blockIfDisabled, async (req, res) => {
   }
 });
 
-// Delete a meal (no auth)
 app.delete('/api/meals/:mealId', blockIfDisabled, async (req, res) => {
   try {
     const { uid } = req.query;
@@ -246,102 +262,6 @@ app.delete('/api/meals/:mealId', blockIfDisabled, async (req, res) => {
   }
 });
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ error: 'Something went wrong!' });
-});
-
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📊 Health check: http://localhost:${PORT}/admin`);
-});
-
-// Admin credentials (for demo, use env vars in production)
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'vasu@edts.ca';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '$Mom$dad$2005$';
-
-// Use MongoDB for session store in production
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'supersecret',
-  resave: false,
-  saveUninitialized: false,
-  store: MongoStore.create({ mongoUrl: MONGODB_URI }),
-  cookie: { secure: false } // Set to true if using HTTPS
-}));
-
-function requireAdminAuth(req, res, next) {
-  if (req.session && req.session.admin) {
-    return next();
-  }
-  return res.redirect('/admin/login');
-}
-
-// Admin login page
-app.get('/admin/login', (req, res) => {
-  res.render('login');
-});
-
-// Admin login POST
-app.post('/admin/login', express.urlencoded({ extended: true }), (req, res) => {
-  const { email, password } = req.body;
-  if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
-    req.session.admin = true;
-    return res.redirect('/admin');
-  }
-  res.render('login', { error: 'Invalid credentials' });
-});
-
-// Admin logout
-app.get('/admin/logout', (req, res) => {
-  req.session.destroy(() => {
-    res.redirect('/admin/login');
-  });
-});
-
-// Admin Portal Route (protected)
-app.get('/admin', requireAdminAuth, async (req, res) => {
-  const users = await User.find({}).lean();
-  res.render('admin', { users });
-});
-
-// Toggle user activation (protected)
-app.post('/admin/user/:uid/toggle', requireAdminAuth, async (req, res) => {
-  const { uid } = req.params;
-  const { disable } = req.body;
-  const user = await User.findOne({ uid });
-  if (!user) return res.status(404).json({ error: 'User not found' });
-  user.disabled = !!disable;
-  await user.save();
-  res.json({ success: true });
-});
-
-// Delete user (protected)
-app.post('/admin/user/:uid/delete', requireAdminAuth, async (req, res) => {
-  const { uid } = req.params;
-  await User.deleteOne({ uid });
-  res.json({ success: true });
-});
-
-// Manage subscription (protected)
-app.post('/admin/user/:uid/subscription', requireAdminAuth, async (req, res) => {
-  const { uid } = req.params;
-  const { subscribe } = req.body;
-  const user = await User.findOne({ uid });
-  if (!user) return res.status(404).json({ error: 'User not found' });
-  user.subscription = !!subscribe;
-  await user.save();
-  res.json({ success: true });
-});
-
-app.use(express.static(path.join(__dirname, 'public')));
-
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'login.html'));
-});
-
-// Simple signup endpoint (no approval, just creates user)
 app.post('/api/signup', async (req, res) => {
   try {
     const { uid, email, name, password } = req.body;
@@ -355,4 +275,98 @@ app.post('/api/signup', async (req, res) => {
     console.error('Error signing up user:', error);
     res.status(500).json({ error: 'Failed to sign up user' });
   }
+});
+
+// Admin auth middleware
+function requireAdminAuth(req, res, next) {
+  if (req.session && req.session.admin) {
+    return next();
+  }
+  return res.redirect('/admin/login');
+}
+
+// Admin routes
+app.get('/admin/login', (req, res) => {
+  res.render('login');
+});
+
+app.post('/admin/login', express.urlencoded({ extended: true }), (req, res) => {
+  const { email, password } = req.body;
+  console.log('Admin login attempt:');
+  console.log('Provided email:', email);
+  console.log('Expected email:', ADMIN_EMAIL);
+  console.log('Provided password:', password);
+  console.log('Expected password:', ADMIN_PASSWORD);
+  console.log('Email match:', email === ADMIN_EMAIL);
+  console.log('Password match:', password === ADMIN_PASSWORD);
+  
+  if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
+    req.session.admin = true;
+    console.log('✅ Admin login successful');
+    return res.redirect('/admin');
+  }
+  console.log('❌ Admin login failed');
+  res.render('login', { error: 'Invalid credentials' });
+});
+
+app.get('/admin/logout', (req, res) => {
+  req.session.destroy(() => {
+    res.redirect('/admin/login');
+  });
+});
+
+app.get('/admin', requireAdminAuth, async (req, res) => {
+  const users = await User.find({}).lean();
+  res.render('admin', { users });
+});
+
+app.post('/admin/user/:uid/toggle', requireAdminAuth, async (req, res) => {
+  const { uid } = req.params;
+  const { disable } = req.body;
+  const user = await User.findOne({ uid });
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  user.disabled = !!disable;
+  await user.save();
+  res.json({ success: true });
+});
+
+app.post('/admin/user/:uid/delete', requireAdminAuth, async (req, res) => {
+  const { uid } = req.params;
+  await User.deleteOne({ uid });
+  res.json({ success: true });
+});
+
+app.post('/admin/user/:uid/subscription', requireAdminAuth, async (req, res) => {
+  const { uid } = req.params;
+  const { subscribe } = req.body;
+  const user = await User.findOne({ uid });
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  user.subscription = !!subscribe;
+  await user.save();
+  res.json({ success: true });
+});
+
+// Default route serves login.html (your main entry point)
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Something went wrong!' });
+});
+
+// Start server
+app.listen(PORT, () => {
+  console.log(`🚀 Server running locally on port ${PORT}`);
+  console.log(`🔗 Main App (login): http://localhost:${PORT}/`);
+  console.log(`🔗 Login Page: http://localhost:${PORT}/login.html`);
+  console.log(`🔗 Dashboard: http://localhost:${PORT}/dashboard.html`);
+  console.log(`🔗 Profile: http://localhost:${PORT}/profile.html`);
+  console.log(`🔗 Progress: http://localhost:${PORT}/progress.html`);
+  console.log(`🔗 Subscription: http://localhost:${PORT}/subscription.html`);
+  console.log(`🔗 Admin Portal: http://localhost:${PORT}/admin`);
+  console.log(`📊 Health Check: http://localhost:${PORT}/health`);
+  console.log(`📊 API Test: http://localhost:${PORT}/test-api.html`);
 });

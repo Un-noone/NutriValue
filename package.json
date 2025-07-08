@@ -1,24 +1,14 @@
 {
-  "name": "project",
+  "name": "nutritrack-backend",
   "version": "1.0.0",
-  "description": "",
   "main": "admin-portal.js",
   "scripts": {
     "start": "node admin-portal.js",
-    "dev": "nodemon admin-portal.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "nodemon admin-portal.js"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Un-noone/NutriValue.git"
+  "engines": {
+    "node": "18.x"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/Un-noone/NutriValue/issues"
-  },
-  "homepage": "https://github.com/Un-noone/NutriValue#readme",
   "dependencies": {
     "body-parser": "^2.2.0",
     "connect-mongo": "^5.1.0",
