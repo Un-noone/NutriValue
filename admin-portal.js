@@ -331,7 +331,7 @@ app.post('/admin/user/:uid/subscription', requireAdminAuth, async (req, res) => 
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
 // Simple signup endpoint (no approval, just creates user)
