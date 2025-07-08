@@ -203,6 +203,13 @@ function initLoginPage() {
     const authError = document.getElementById('auth-error');
     const authErrorText = document.getElementById('auth-error-text');
 
+    // Show deactivation message if flagged
+    if (sessionStorage.getItem('deactivatedUser')) {
+        if (authErrorText) authErrorText.textContent = "Your account has been deactivated by the admin. Please contact support.";
+        if (authError) authError.classList.remove('hidden');
+        sessionStorage.removeItem('deactivatedUser');
+    }
+
     if (showLoginBtn) {
         showLoginBtn.addEventListener('click', () => {
             loginForm.classList.remove('hidden');
@@ -1251,11 +1258,11 @@ function sendSignupNotification(email, approvalToken) {
 function showDeactivatedModal() {
     const modal = document.createElement('div');
     modal.innerHTML = `
-      <div style="position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;">
-        <div style="background:white;padding:2rem 2.5rem;border-radius:1rem;box-shadow:0 4px 24px rgba(0,0,0,0.15);max-width:90vw;text-align:center;">
-          <h2 style="font-size:1.5rem;font-weight:bold;color:#ef4444;">Account Deactivated</h2>
-          <p style="margin:1rem 0 1.5rem 0;">Your account has been deactivated by the admin. Please contact support for help.</p>
-          <button id="deactivated-ok-btn" style="background:#ef4444;color:white;font-weight:bold;padding:0.75rem 2rem;border-radius:0.5rem;font-size:1rem;">OK</button>
+      <div style=\"position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;\">
+        <div style=\"background:white;padding:2rem 2.5rem;border-radius:1rem;box-shadow:0 4px 24px rgba(0,0,0,0.15);max-width:90vw;text-align:center;\">
+          <h2 style=\"font-size:1.5rem;font-weight:bold;color:#ef4444;\">Account Deactivated</h2>
+          <p style=\"margin:1rem 0 1.5rem 0;\">Your account has been deactivated by the admin. Please contact support for help.</p>
+          <button id=\"deactivated-ok-btn\" style=\"background:#ef4444;color:white;font-weight:bold;padding:0.75rem 2rem;border-radius:0.5rem;font-size:1rem;\">OK</button>
         </div>
       </div>
     `;
@@ -1264,6 +1271,8 @@ function showDeactivatedModal() {
         modal.remove();
         window.location.href = 'login.html';
     };
+    // Set flag for login page
+    sessionStorage.setItem('deactivatedUser', '1');
 }
 
 // Global fetch wrapper to catch deactivation error

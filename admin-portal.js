@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
 const session = require('express-session');
+const MongoStore = require('connect-mongo');
 // Removed: const admin = require('firebase-admin');
 // Removed: const serviceAccount = require('/etc/secrets/serviceAccountKey.json');hi
 
@@ -15,13 +16,10 @@ app.use(express.json());
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-// MongoDB Atlas connection with error handling
+// MongoDB Atlas connection
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://vasuvasu06092005:$Mom$dad$2005$@cluster0.hvvxk.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
 
-mongoose.connect(MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-})
+mongoose.connect(MONGODB_URI)
 .then(() => console.log('✅ MongoDB Atlas connected successfully'))
 .catch(err => {
   console.error('❌ MongoDB connection error:', err);
@@ -257,10 +255,12 @@ app.listen(PORT, () => {
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'vasu@edts.ca';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '$Mom$dad$2005$';
 
+// Use MongoDB for session store in production
 app.use(session({
   secret: process.env.SESSION_SECRET || 'supersecret',
   resave: false,
   saveUninitialized: false,
+  store: MongoStore.create({ mongoUrl: MONGODB_URI }),
   cookie: { secure: false } // Set to true if using HTTPS
 }));
 
