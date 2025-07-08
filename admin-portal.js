@@ -79,12 +79,17 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', message: 'Server is running' });
 });
 
-// Middleware to block disabled users
+// Middleware to block disabled users (except for new user creation)
 async function blockIfDisabled(req, res, next) {
   const uid = req.body.uid || req.query.uid;
   if (!uid) return next(); // Allow if no uid (e.g., signup)
   const user = await User.findOne({ uid });
   if (user && user.disabled) {
+    // Allow POST /api/user/profile only if user does not exist (new user creation)
+    if (req.method === 'POST' && req.path === '/api/user/profile') {
+      return res.status(403).json({ error: 'Account deactivated' });
+    }
+    // Block all other endpoints
     return res.status(403).json({ error: 'Account deactivated' });
   }
   next();
@@ -96,6 +101,7 @@ app.post('/api/user/profile', blockIfDisabled, async (req, res) => {
     const { uid, name, email, age, height, weight, goal, targetWeight, history } = req.body;
     if (!uid || !email) return res.status(400).json({ error: 'uid and email are required' });
     let user = await User.findOne({ uid });
+    if (user && user.disabled) return res.status(403).json({ error: 'Account deactivated' });
     if (user) {
       user.name = name || user.name;
       user.email = email || user.email;
@@ -137,6 +143,7 @@ app.get('/api/user/profile', blockIfDisabled, async (req, res) => {
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
+    if (user.disabled) return res.status(403).json({ error: 'Account deactivated' });
     res.json({ success: true, user });
   } catch (error) {
     console.error('Error fetching user profile:', error);
